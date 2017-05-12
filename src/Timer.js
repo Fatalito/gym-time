@@ -7,48 +7,92 @@ const getRandomInt = (min, max) => {
   return Math.floor(Math.random() * (max - min)) + min;
 }
 
+const getHumanFormat = (timeMs) => {
+    const elapsed = Math.round(timeMs/ 100);
+    const seconds = (elapsed / 10).toFixed(0);
+
+    return { elapsed: elapsed,
+            seconds: seconds,
+            minutes: Math.floor(seconds / 60),
+            secondsForMinutes:  (seconds % 60).toFixed(0)
+    }
+}
+
 class Timer extends Component {
   constructor(props) {
     super(props);
     const sets = getIntervals();
     const speechSynthesis = window.speechSynthesis;
-
+    const totalTime = getHumanFormat(sets.totalTimeMs)
     this.state = {
       elapsed: 0,
       start: new Date(),
       intervals: sets.intervals,
-      totalTime: sets.totalTime,
-      minutesTotal: (sets.totalTime / 60).toFixed(0),
-      secondsTotal: (sets.totalTime % 60).toFixed(0),
+      totalTime: totalTime.seconds,
+      minutesTotal: totalTime.minutes,
+      secondsTotal: totalTime.secondsForMinutes,
       synth: speechSynthesis,
-      voices: speechSynthesis.getVoices()
+      voices: speechSynthesis.getVoices(),
+      pauses: [],
+      paused: false
     };
-
-    this.tick = this.tick.bind(this);
   }
 
-  tick(){
+  tick = () => {
+    if (this.state.paused){
+        const pause = this.state.pauses.pop()
+        pause.elapsed =  new Date() - pause.start
+        this.setState({elapsed: new Date() - this.state.start, pauses: [...this.state.pauses,  pause]});
+    }
     this.setState({elapsed: new Date() - this.state.start});
   }
 
+  stopPause = () => {
+    this.setState({paused: false});
+  }
+
+  addPause = () => {
+    const pause = { start: new Date(), elapsed: 0}
+    const pauses = this.state.pauses.length > 0 ? [...this.state.pauses,  pause] : [pause]
+    this.setState({paused: true, pauses: pauses});
+  }
+
+  managePause = () =>{
+    if (this.state.paused)
+        return this.stopPause()
+    this.addPause();
+  }
+
+  keyPress = (e) =>{
+    if(e.keyCode === 32){
+       e.preventDefault();
+        this.managePause()
+    }
+  }
+
   componentDidMount(){
+    document.addEventListener("keydown", this.keyPress, true);
     this.timer = setInterval(this.tick, 1000);
   }
 
   componentWillUnmount(){
     clearInterval(this.timer);
+     window.removeEventListener('keydown', this.keyPress);
   }
 
+
   render() {
-    const elapsed = Math.round(this.state.elapsed / 100);
-    const seconds = (elapsed / 10).toFixed(0);
-    const minutes = Math.floor(seconds / 60);
-    const secondsForMinutes = (seconds % 60).toFixed(0);
+    const pausedTimeMs = this.state.pauses.reduce((acc, p)=> (acc + p.elapsed), 0)
+    const pausedTime = getHumanFormat( pausedTimeMs )
+
+    const elapsedWithoutPauseMs = this.state.elapsed - pausedTimeMs
+    const time = getHumanFormat(elapsedWithoutPauseMs)
+
+    const finishTime = new Date(this.state.start.getTime() + this.state.totalTime * 1000 + pausedTimeMs);
 
     const left = this.state.intervals
                              .map(i => i.time)
-                             .filter(t => t > seconds)
-
+                             .filter(t => t > time.seconds)
     const currentTime = Math.min(...left)
     const exo = this.state.intervals.find(i => i.time === currentTime)
 
@@ -58,22 +102,22 @@ class Timer extends Component {
 
     if (this.state.voices) {
         const voice = this.state.voices[getRandomInt(0, this.state.voices.length-1)];
-        if(currentTime - seconds === 1){
+        if(currentTime - time.seconds === 1){
           var utterThis = new SpeechSynthesisUtterance(nextExo.name)
           utterThis.voice = voice;
           this.state.synth.speak(utterThis);
         }
     }
 
-    var finishTime = new Date(this.state.start);
-     finishTime.setSeconds(finishTime.getSeconds() + this.state.totalTime)
     return (
-        <div>
-         <p style={{fontSize: 2+'em'}}>FINISH TIME <b>{finishTime.toISOString()} </b></p>
-         <p style={{fontSize: 2+'em'}}>TIME <b>{seconds} / {this.state.totalTime}</b></p>
-         <p style={{fontSize: 2+'em'}}>MINUTES <b>{minutes}:{secondsForMinutes}</b>/
+        <div style={{backgroundColor: this.state.paused ? 'lightsalmon' : ''}}>
+         <p style={{fontSize: 2+'em'}}>START<b> {this.state.start.toLocaleTimeString()}</b></p>
+         <p style={{fontSize: 2+'em'}}>PAUSE<b> {pausedTime.seconds}</b></p>
+         <p style={{fontSize: 2+'em'}}>FINISH<b> {finishTime.toLocaleTimeString()}</b></p>
+         <p style={{fontSize: 2+'em'}}>TIME <b>{time.seconds} / {this.state.totalTime}</b></p>
+         <p style={{fontSize: 2+'em'}}>MINUTES <b>{time.minutes}:{time.secondsForMinutes}</b>/
           <b>{this.state.minutesTotal}:{this.state.secondsTotal}</b></p>
-         <p style={{fontSize: 5+'em'}}>{exo.name} <b>{currentTime - seconds}</b></p>
+         <p style={{fontSize: 5+'em'}}>{exo.name} <b>{currentTime - time.seconds}</b></p>
          <p style={{fontSize: 3+'em'}}>{nextExo.name} </p>
         </div>
     );

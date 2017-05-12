@@ -54,17 +54,14 @@ const addInterval = (intervals, time, name, delay) => {
 const addExerciseWithRest = (ex, time, intervals) => {
     time = addInterval(intervals, time, ex.name, ex.active);
     time = addInterval(intervals, time, ex.rest ? ex.name + ' rest' : 'rest', ex.rest ? ex.rest: 5);
-
     return time
 }
 
 const addExes = (exercises, intervals, time) => {
     for(let i =0; i < exercises.iteration; i++){
         for(let j = 0; j < exercises.exercise.length; j++){
-            var ex = exercises.exercise[j];
-            console.log('ex', ex)
-            var v =  addExerciseWithRest(ex, time, intervals)
-            time = v;
+            const ex = exercises.exercise[j];
+            time =  addExerciseWithRest(ex, time, intervals)
         }
     }
     return time;
@@ -74,13 +71,9 @@ const getIntervals= () =>{
     const intervals = []
     let time = 0;
     time = addInterval(intervals, time, 'rest', 10);
-    sets.forEach(s =>{
-        console.log('---------------adding set', s.iteration, time )
-
-        time = addExes(s, intervals, time)
-    })
+    sets.forEach(s => time = addExes(s, intervals, time))
     return {
-        totalTime: time,
+        totalTimeMs: time * 1000,
         intervals: intervals
     }
 }
